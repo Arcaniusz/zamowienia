@@ -499,30 +499,37 @@ function hideForm() {
 
 function saveItem(type) {
     const formContainer = document.getElementById('formContainer');
-    const formData = new FormData(formContainer.querySelector('.form-section'));
+    const formSection = formContainer.querySelector('.form-section');
+    
+    if (!formSection) {
+        console.error('Form section not found');
+        return;
+    }
     
     const itemData = {
         id: currentEditingIndex >= 0 ? orderItems[currentEditingIndex].id : itemCounter,
         type: type,
-        positionId: formData.get('positionId'),
+        positionId: '',
         data: {}
     };
     
     
-    for (let [key, value] of formData.entries()) {
-        itemData.data[key] = value;
-    }
+    const inputs = formSection.querySelectorAll('input, select, textarea');
     
-    
-    const checkboxes = formContainer.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-        itemData.data[checkbox.name] = checkbox.checked;
-    });
-    
-    
-    const radioButtons = formContainer.querySelectorAll('input[type="radio"]:checked');
-    radioButtons.forEach(radio => {
-        itemData.data[radio.name] = radio.value;
+    inputs.forEach(input => {
+        if (input.name) {
+            if (input.type === 'checkbox') {
+                itemData.data[input.name] = input.checked;
+            } else if (input.type === 'radio') {
+                if (input.checked) {
+                    itemData.data[input.name] = input.value;
+                }
+            } else if (input.name === 'positionId') {
+                itemData.positionId = input.value;
+            } else {
+                itemData.data[input.name] = input.value;
+            }
+        }
     });
     
     
@@ -530,8 +537,15 @@ function saveItem(type) {
     selectedColors.forEach(colorEl => {
         const fieldName = colorEl.dataset.field;
         const colorValue = colorEl.dataset.color;
-        itemData.data[fieldName] = colorValue;
+        if (fieldName && colorValue) {
+            itemData.data[fieldName] = colorValue;
+        }
     });
+    
+    
+    if (!itemData.positionId) {
+        itemData.positionId = `${type.toUpperCase()}-${String(itemCounter).padStart(3, '0')}`;
+    }
     
     if (currentEditingIndex >= 0) {
         orderItems[currentEditingIndex] = itemData;
@@ -541,6 +555,7 @@ function saveItem(type) {
         itemCounter++;
     }
     
+    console.log('Item saved:', itemData); 
     updateItemsList();
     hideForm();
 }
@@ -720,62 +735,107 @@ function generatePDF() {
     
     const t = translations[currentLanguage] || translations.pl;
     
+    
+    function convertPolishChars(text) {
+        if (!text) return '';
+        return text
+            .replace(/ą/g, 'a').replace(/Ą/g, 'A')
+            .replace(/ć/g, 'c').replace(/Ć/g, 'C')
+            .replace(/ę/g, 'e').replace(/Ę/g, 'E')
+            .replace(/ł/g, 'l').replace(/Ł/g, 'L')
+            .replace(/ń/g, 'n').replace(/Ń/g, 'N')
+            .replace(/ó/g, 'o').replace(/Ó/g, 'O')
+            .replace(/ś/g, 's').replace(/Ś/g, 'S')
+            .replace(/ź/g, 'z').replace(/Ź/g, 'Z')
+            .replace(/ż/g, 'z').replace(/Ż/g, 'Z');
+    }
+    
     let yPosition = 20;
     
     
-    doc.setFontSize(20);
-    doc.text('MatixHol', 20, yPosition);
-    yPosition += 10;
+    doc.setFillColor(59, 130, 246); 
+    doc.rect(0, 0, 210, 45, 'F');
     
-    doc.setFontSize(16);
-    doc.text(t.order_summary || 'Podsumowanie Zamówienia', 20, yPosition);
-    yPosition += 15;
     
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text('MatixHol', 20, 25);
+    
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'normal');
+    doc.text(convertPolishChars(t.order_summary || 'Podsumowanie Zamowienia'), 20, 35);
+    
+    
+    doc.setTextColor(0, 0, 0);
+    yPosition = 55;
+    
+    
+    doc.setFillColor(239, 246, 255); 
+    doc.rect(15, yPosition - 5, 180, 20, 'F');
+    doc.setDrawColor(59, 130, 246);
+    doc.rect(15, yPosition - 5, 180, 20, 'S');
     
     doc.setFontSize(12);
-    doc.text(`${t.order_status || 'Status'}: ${t.order_completed || 'Sfinalizowano'}`, 20, yPosition);
-    yPosition += 10;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(59, 130, 246);
+    doc.text(convertPolishChars(`${t.order_status || 'Status'}: ${t.order_completed || 'Sfinalizowano'}`), 20, yPosition + 3);
     
     
     const currentDate = new Date().toLocaleDateString(currentLanguage === 'en' ? 'en-US' : currentLanguage === 'nl' ? 'nl-NL' : 'pl-PL');
-    doc.text(`${t.completion_date || 'Data finalizacji'}: ${currentDate}`, 20, yPosition);
+    doc.text(convertPolishChars(`${t.completion_date || 'Data finalizacji'}: ${currentDate}`), 20, yPosition + 12);
+    
+    doc.setTextColor(0, 0, 0);
+    yPosition += 30;
+    
+    
+    doc.setFillColor(59, 130, 246);
+    doc.rect(15, yPosition - 3, 180, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(convertPolishChars(t.customer_data || 'Dane Klienta'), 20, yPosition + 2);
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
     yPosition += 15;
     
-    
-    doc.setFontSize(14);
-    doc.text(t.customer_data || 'Dane Klienta', 20, yPosition);
-    yPosition += 10;
-    
     doc.setFontSize(10);
-    doc.text(`${t.full_name || 'Imię i nazwisko'}: ${customerName}`, 20, yPosition);
+    doc.text(convertPolishChars(`${t.full_name || 'Imie i nazwisko'}: ${customerName}`), 20, yPosition);
     yPosition += 6;
     
     if (customerPhone) {
-        doc.text(`${t.phone || 'Telefon'}: ${customerPhone}`, 20, yPosition);
+        doc.text(convertPolishChars(`${t.phone || 'Telefon'}: ${customerPhone}`), 20, yPosition);
         yPosition += 6;
     }
     
     if (customerAddress) {
-        doc.text(`${t.address || 'Adres'}: ${customerAddress}`, 20, yPosition);
+        doc.text(convertPolishChars(`${t.address || 'Adres'}: ${customerAddress}`), 20, yPosition);
         yPosition += 6;
     }
     
     if (customerEmail) {
-        doc.text(`${t.email || 'Email'}: ${customerEmail}`, 20, yPosition);
+        doc.text(convertPolishChars(`${t.email || 'Email'}: ${customerEmail}`), 20, yPosition);
         yPosition += 6;
     }
     
     if (orderDate) {
-        doc.text(`${t.order_date || 'Data zamówienia'}: ${orderDate}`, 20, yPosition);
+        doc.text(convertPolishChars(`${t.order_date || 'Data zamowienia'}: ${orderDate}`), 20, yPosition);
         yPosition += 6;
     }
     
-    yPosition += 10;
+    yPosition += 15;
     
     
+    doc.setFillColor(59, 130, 246);
+    doc.rect(15, yPosition - 3, 180, 8, 'F');
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(14);
-    doc.text(t.added_items || 'Dodane Pozycje', 20, yPosition);
-    yPosition += 10;
+    doc.setFont('helvetica', 'bold');
+    doc.text(convertPolishChars(t.added_items || 'Dodane Pozycje'), 20, yPosition + 2);
+    
+    doc.setTextColor(0, 0, 0);
+    yPosition += 15;
     
     let totalPrice = 0;
     
@@ -786,11 +846,19 @@ function generatePDF() {
             yPosition = 20;
         }
         
-        doc.setFontSize(12);
-        doc.text(`${index + 1}. ${item.positionId} - ${getItemTypeDisplayName(item.type)}`, 20, yPosition);
-        yPosition += 8;
         
-        doc.setFontSize(10);
+        doc.setFillColor(248, 250, 252); 
+        doc.rect(15, yPosition - 2, 180, 8, 'F');
+        
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(37, 99, 235); 
+        doc.text(convertPolishChars(`${index + 1}. ${item.positionId} - ${getItemTypeDisplayName(item.type)}`), 20, yPosition + 3);
+        yPosition += 12;
+        
+        doc.setTextColor(0, 0, 0);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
         
         
         const details = generateItemDetails(item, t);
@@ -799,30 +867,46 @@ function generatePDF() {
                 doc.addPage();
                 yPosition = 20;
             }
-            doc.text(detail, 25, yPosition);
-            yPosition += 5;
+            doc.text(convertPolishChars(detail), 25, yPosition);
+            yPosition += 4;
         });
         
         
         if (item.data.price) {
             const price = parseFloat(item.data.price);
             totalPrice += price;
-            doc.text(`${t.price || 'Cena'}: ${price.toFixed(2)} €`, 25, yPosition);
-            yPosition += 5;
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(34, 197, 94); 
+            doc.text(convertPolishChars(`${t.price || 'Cena'}: ${price.toFixed(2)} €`), 25, yPosition);
+            doc.setTextColor(0, 0, 0);
+            doc.setFont('helvetica', 'normal');
+            yPosition += 6;
         }
         
-        yPosition += 5; 
+        yPosition += 8; 
     });
     
     
     if (totalPrice > 0) {
-        yPosition += 5;
-        doc.setFontSize(12);
-        doc.text(`${t.total_price || 'Łączna cena'}: ${totalPrice.toFixed(2)} €`, 20, yPosition);
+        yPosition += 10;
+        doc.setFillColor(59, 130, 246);
+        doc.rect(15, yPosition - 5, 180, 12, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(convertPolishChars(`${t.total_price || 'Laczna cena'}: ${totalPrice.toFixed(2)} €`), 20, yPosition + 2);
     }
     
     
-    const filename = `MatixHol_${t.order_summary?.replace(/\s+/g, '_') || 'Zamowienie'}_${new Date().getTime()}.pdf`;
+    yPosition = 285;
+    doc.setTextColor(107, 114, 128); 
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('MatixHol - System Zamowien', 20, yPosition);
+    doc.text(`Wygenerowano: ${new Date().toLocaleString('pl-PL')}`, 120, yPosition);
+    
+    
+    const filename = `MatixHol_${convertPolishChars(t.order_summary?.replace(/\s+/g, '_') || 'Zamowienie')}_${new Date().getTime()}.pdf`;
     doc.save(filename);
 }
 
